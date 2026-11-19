@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -1794,23 +1795,30 @@ func (r *networkResource) Read(
 	if id != "" {
 		// Get the network by ID
 		network, err = r.client.GetNetwork(ctx, site, id)
-		if err != nil {
+	} else {
+		// Get the network by name
+		network, err = r.client.GetNetworkByName(ctx, site, data.Name.ValueString())
+	}
+
+	if err != nil {
+		var notFound *unifi.NotFoundError
+		if errors.As(err, &notFound) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
+		if id != "" {
 			resp.Diagnostics.AddError(
 				"Error Reading network",
 				"Could not read network ID "+id+": "+err.Error(),
 			)
-			return
-		}
-	} else {
-		// Get the network by name
-		network, err = r.client.GetNetworkByName(ctx, site, data.Name.ValueString())
-		if err != nil {
+		} else {
 			resp.Diagnostics.AddError(
 				"Error Reading network",
 				"Could not read network name "+data.Name.ValueString()+": "+err.Error(),
 			)
-			return
 		}
+		return
 	}
 
 	// Convert to model, passing the current state to preserve null values
